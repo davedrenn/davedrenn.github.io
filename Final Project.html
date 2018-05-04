@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset=utf-8 />
+    <title>PHL Farmers Markets</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+
+    <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" />
+    <link href='http://fonts.googleapis.com/css?family=Lato' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+   
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: whitesmoke;
+            font-family: Lato, sans-serif;
+            color: #0D0000;
+        }
+        header {
+            padding: 6px 10%;
+        }
+        h1 {
+            display: inline-block;
+            margin-right: 20px;
+            color: #001323;
+        }
+        h2 {
+            display: inline-block;
+            color: #001323;
+        }
+        #map {
+            width: 80%;
+            height: 700px;
+            margin: 10px auto;
+        }
+        footer {
+            padding: 6px 10%;
+            width: 80%;
+        }
+        p {
+            font-size: 1em;
+            color: #001323;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Philadelphia Farmers Markets</h1>
+        <h2><i>Where is the nearest one to you?</i></h2>
+    </header>
+
+    <div id='map'></div>
+
+    <footer>
+        <p>Map authored by Dave Drennan</p>
+        <p>Click on the map for directions to the nearest farmers market from that point. Hover over the farmers market for more information on operating times.</p>
+    </footer>
+
+    <script src="Farmers_Markets.js"></script>
+    <script src="GeometryUtil.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    
+    <script>
+
+    var map = L.map('map', {
+        center: [40, -75.163549],
+        zoom: 11,
+      });
+      
+    var tiles = L.tileLayer('http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      });  
+      
+      tiles.addTo(map);   
+    
+    //geoJson data from OpenDataPhilly for farmers markets as of January 2015 (supposedly updated in Spring 2017)
+    var farmersMarkets = L.geoJson(markets, {
+        pointToLayer: function(feature,latlng) {
+            return L.circleMarker(latlng);    
+        },
+        style: function(feature) {
+            return {
+                color: 'dodgerblue',
+                fillColor: 'white',
+                opacity: 1,
+                fillOpacity: 1
+            } 
+        },
+        onEachFeature : function(feature,layer) {
+            layer.on('mouseover', function(){
+                layer.bindPopup("<b>Market Name:</b> " + feature.properties.NAME + "<br><b>Months Open:</b> " + feature.properties.MONTHS + "<br><b>Days:</b> " + feature.properties.DAY + "<br><b>Times:</b> " + feature.properties.TIME + "<br><b>Bus and Subway Routes</b>: "+ feature.properties.MAJOR_BUS_SUBWAY_ROUTES).openPopup();
+                layer.setStyle({fillColor: 'dodgerblue'});
+            }),
+            layer.on('mouseout', function(){
+                layer.closePopup();
+                layer.setStyle({fillColor: 'white'});
+            })
+        }
+    }).addTo(map);
+    
+    var markers = L.layerGroup().addTo(map);
+        
+    //initializes route to avoid null on reset    
+    var route = L.Routing.control({waypoints: []})    
+        
+    map.on('click', function(e) {
+        
+        //clears current route and marker states
+        reset();
+        
+        //creates starting location marker
+        var marker = L.marker(e.latlng).addTo(markers).addTo(map);
+        
+        //Uses geometryutil to calculate closest point location from geoJson data 
+        //This link explains it:
+        //http://makinacorpus.github.io/Leaflet.GeometryUtil/global.html#closestLayer
+        var closestMarket = L.GeometryUtil.closestLayer(map, farmersMarkets.getLayers(), e.latlng);
+        
+        //Creates circle marker for clarity on closest market destination
+        var destination = L.marker(closestMarket.latlng).addTo(markers).addTo(map);
+        
+        //Highlights closestMarket circle marker by changing color from default to blue
+        if (typeof closestMarket.layer.setStyle === 'function') {
+            closestMarket.layer.setStyle({
+                color: 'dodgerblue',
+                fillColor: 'dodgerblue',
+            });
+        }
+        
+        //Uses leaflet-routing-machine to generate written directions and visual line from clicked point to nearest market
+        //This link explains it:
+        //http://www.liedman.net/leaflet-routing-machine/
+        route = L.Routing.control({
+            waypoints: [
+                marker.getLatLng(),
+                destination.getLatLng()
+            ]
+        }).addTo(map);     
+    });
+    
+    function reset(){
+        map.removeControl(route);
+        markers.clearLayers();
+        farmersMarkets.setStyle({
+            color:'dodgerblue',
+            fillColor: 'white'
+        });
+   }
+    
+    </script>
+    
+</body>
+
+</html>
